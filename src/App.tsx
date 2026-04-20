@@ -23,7 +23,7 @@ import { AddStateModal } from '@/components/workflow/add-state-modal';
 import { SimulationBar } from '@/components/workflow/simulation-bar';
 import { SimStepModal } from '@/components/workflow/sim-step-modal';
 
-import { mapWorkflowToFlow } from '@/lib/workflow-utils';
+import { mapWorkflowToFlow, getAutoPosition } from '@/lib/workflow-utils';
 import ticketWorkflow from '@/example/ticket-workflow.json';
 import { type WorkflowData } from '@/types/workflow';
 
@@ -39,7 +39,7 @@ function WorkflowEditor() {
   const { fitView } = useReactFlow();
 
   // Initial data from JSON
-  const [workflowData] = useState<WorkflowData>(ticketWorkflow as WorkflowData);
+  const [workflowData] = useState<WorkflowData>(ticketWorkflow as unknown as WorkflowData);
 
   const initialElements = useMemo(() => mapWorkflowToFlow(workflowData), []);
 
@@ -94,7 +94,7 @@ function WorkflowEditor() {
 
   const onReset = () => {
     if (confirm('¿Restablecer el workflow a los valores iniciales? Se perderán todos los cambios.')) {
-      const resetElements = mapWorkflowToFlow(ticketWorkflow as WorkflowData);
+      const resetElements = mapWorkflowToFlow(ticketWorkflow as unknown as WorkflowData);
       setNodes(resetElements.nodes);
       setEdges(resetElements.edges.map(e => ({ ...e, type: 'workflowEdge' })));
       setSelectedNodeId(null);
@@ -124,18 +124,27 @@ function WorkflowEditor() {
     setEdges((eds) => addEdge({ id, source, target, type: 'workflowEdge' }, eds));
   };
 
-  const addNewState = (data: { label: string; group_id: string }) => {
-    const group = workflowData.groups.find(g => g.id === data.group_id);
+  const addNewState = (data: {
+    label: string;
+    group_id: string;
+    color?: string;
+    sla?: { hours: number; minutes: number; total_minutes: number }
+  }) => {
+    const group = workflowData.groups.find(g => g.id.toString() === data.group_id.toString());
     const id = `state_${Date.now()}`;
+
+    // Calcular posición automática debajo del último nodo del mismo grupo
+    const position = getAutoPosition(group?.label || '', nodes);
+
     const newNode: Node = {
       id,
       type: 'stateNode',
-      position: { x: 100, y: 100 },
+      position,
       data: {
         label: data.label,
         groupLabel: group?.label || '',
-        color: group?.color || '#888',
-        sla: { hours: 0, minutes: 0, total_minutes: 0 },
+        color: data.color || group?.color || '#888',
+        sla: data.sla || { hours: 0, minutes: 0, total_minutes: 0 },
       },
     };
     setNodes((nds) => [...nds, newNode]);
@@ -258,12 +267,13 @@ function WorkflowEditor() {
             <Sidebar
               groups={workflowData.groups}
               onSelectState={onSelectFromSidebar}
-              onAddState={() => setIsAddModalOpen(true)}
+              onAddState={addNewState}
+              onDeleteState={deleteNode}
               selectedStateId={selectedNodeId}
-              states={highlightedElements.nodes.map(n => ({
+              states={highlightedElements.nodes.map((n: any) => ({
                 id: n.id,
                 label: n.data.label as string,
-                group_id: workflowData.groups.find(g => g.label === n.data.groupLabel)?.id || '',
+                group_id: workflowData.groups.find(g => g.label === n.data.groupLabel)?.id.toString() || '',
                 sla: n.data.sla as any,
                 order: 0,
                 is_initial: false,
@@ -275,73 +285,74 @@ function WorkflowEditor() {
         </div>
 
         {/* Canvas */}
-      <div className="flex-1 relative bg-slate-950">
-        <ReactFlow
-          nodes={highlightedElements.nodes}
-          edges={highlightedElements.edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          onPaneClick={onPaneClick}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          colorMode="dark"
-          defaultEdgeOptions={{
-            type: 'workflowEdge',
-            markerEnd: { type: 'arrowclosed', color: '#475569' }
-          }}
-        >
-          {/* Background grid pattern */}
-          <div className="absolute inset-0 pointer-events-none opacity-20"
-               style={{ backgroundImage: 'radial-gradient(#475569 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+        <div className="flex-1 relative bg-slate-950">
+          <ReactFlow
+            nodes={highlightedElements.nodes}
+            edges={highlightedElements.edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+            colorMode="dark"
+            defaultEdgeOptions={{
+              type: 'workflowEdge',
+              markerEnd: { type: 'arrowclosed', color: '#475569' }
+            }}
+          >
+            {/* Background grid pattern */}
+            <div className="absolute inset-0 pointer-events-none opacity-20"
+              style={{ backgroundImage: 'radial-gradient(#475569 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
 
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-full text-[10px] font-medium text-slate-500 uppercase tracking-widest pointer-events-none">
-            {isSimulating ? 'Modo Simulación Activo' : 'Arrastre para mover · Conecte para transicionar'}
-          </div>
-        </ReactFlow>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-full text-[10px] font-medium text-slate-500 uppercase tracking-widest pointer-events-none">
+              {isSimulating ? 'Modo Simulación Activo' : 'Arrastre para mover · Conecte para transicionar'}
+            </div>
+          </ReactFlow>
 
-        {isSimulating && (
-          <SimulationBar
-            currentNode={selectedNode}
-            historyLength={simHistory.length}
-            onNext={simNext}
-            onBack={simBack}
-            onExit={stopSimulation}
+          {isSimulating && (
+            <SimulationBar
+              currentNode={selectedNode}
+              historyLength={simHistory.length}
+              onNext={simNext}
+              onBack={simBack}
+              onExit={stopSimulation}
+            />
+          )}
+        </div>
+
+        {/* Inspector */}
+        {!isSimulating && (
+          <Inspector
+            selectedNode={selectedNode}
+            nodes={nodes}
+            edges={edges}
+            groups={workflowData.groups}
+            onUpdateNode={updateNodeData}
+            onDeleteNode={deleteNode}
+            onDeleteEdge={deleteEdge}
+            onAddEdge={addNewEdge}
           />
         )}
-      </div>
 
-      {/* Inspector */}
-      {!isSimulating && (
-        <Inspector
-          selectedNode={selectedNode}
-          nodes={nodes}
-          edges={edges}
-          onUpdateNode={updateNodeData}
-          onDeleteNode={deleteNode}
-          onDeleteEdge={deleteEdge}
-          onAddEdge={addNewEdge}
-        />
-      )}
+        {/* Modals */}
+        {simOptions && (
+          <SimStepModal
+            options={simOptions}
+            onSelect={handleSimTransition}
+            onClose={() => setSimOptions(null)}
+          />
+        )}
 
-      {/* Modals */}
-      {simOptions && (
-        <SimStepModal
-          options={simOptions}
-          onSelect={handleSimTransition}
-          onClose={() => setSimOptions(null)}
-        />
-      )}
-
-      {isAddModalOpen && (
-        <AddStateModal
-          groups={workflowData.groups}
-          onClose={() => setIsAddModalOpen(false)}
-          onAdd={addNewState}
-        />
-      )}
+        {isAddModalOpen && (
+          <AddStateModal
+            groups={workflowData.groups}
+            onClose={() => setIsAddModalOpen(false)}
+            onAdd={addNewState}
+          />
+        )}
       </div>
     </div>
   );

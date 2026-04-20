@@ -1,11 +1,21 @@
 import { Clock, Trash2, X } from 'lucide-react';
 import { type Node, type Edge } from '@xyflow/react';
+import { type Group } from '@/types/workflow';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface InspectorProps {
   selectedNode: Node | null;
   edges: Edge[];
   nodes: Node[];
+  groups: Group[];
   onUpdateNode: (nodeId: string, data: any) => void;
   onDeleteNode: (nodeId: string) => void;
   onDeleteEdge: (edgeId: string) => void;
@@ -16,6 +26,7 @@ export function Inspector({
   selectedNode,
   edges,
   nodes,
+  groups,
   onUpdateNode,
   onDeleteNode,
   onDeleteEdge,
@@ -38,6 +49,10 @@ export function Inspector({
     (n) => n.id !== selectedNode.id && !outgoingTransitions.some((e) => e.target === n.id)
   );
 
+  // Buscar el color original del grupo
+  const group = groups.find(g => g.label === groupLabel);
+  const groupColor = group?.color || color;
+
   const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onUpdateNode(selectedNode.id, { ...selectedNode.data, label: e.target.value });
   };
@@ -50,6 +65,12 @@ export function Inspector({
     });
   };
 
+  const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onUpdateNode(selectedNode.id, { ...selectedNode.data, color: e.target.value });
+  };
+
+  const totalMinutes = (sla.hours * 60) + sla.minutes;
+
   return (
     <aside className="w-80 bg-[#0f172a] border-l border-slate-800 flex flex-col select-none overflow-hidden">
       <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
@@ -60,21 +81,41 @@ export function Inspector({
         {/* Group Badge */}
         <div
           className="inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
-          style={{ backgroundColor: color + '22', color: color, border: `1px solid ${color}44` }}
+          style={{ backgroundColor: groupColor + '22', color: groupColor, border: `1px solid ${groupColor}44` }}
         >
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: groupColor }} />
           {groupLabel}
         </div>
 
         {/* Label Field */}
         <div className="space-y-2">
           <label className="text-[10px] font-bold uppercase text-slate-500">Nombre</label>
-          <input
+          <Input
             type="text"
             value={label}
             onChange={handleLabelChange}
-            className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-slate-600 transition-colors"
+            className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500"
           />
+        </div>
+
+        {/* Color Picker */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold uppercase text-slate-500">Color</label>
+          <div className="flex items-center gap-3">
+            <div className="relative w-10 h-10 shrink-0">
+              <input
+                type="color"
+                value={color}
+                onChange={handleColorChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <div
+                className="w-full h-full rounded-md border border-slate-800 shadow-sm"
+                style={{ backgroundColor: color }}
+              />
+            </div>
+            <span className="text-xs font-mono text-slate-400 uppercase">{color}</span>
+          </div>
         </div>
 
         {/* ID Field */}
@@ -90,27 +131,34 @@ export function Inspector({
           </label>
           <div className="flex gap-2">
             <div className="flex-1 space-y-1">
-              <input
+              <Input
                 type="number"
                 min="0"
                 value={sla.hours}
                 onChange={(e) => handleSLAChange('hours', e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-slate-600"
+                className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500"
               />
               <span className="text-[9px] text-slate-600 block text-center uppercase">Horas</span>
             </div>
             <div className="flex-1 space-y-1">
-              <input
+              <Input
                 type="number"
                 min="0"
                 max="59"
                 value={sla.minutes}
                 onChange={(e) => handleSLAChange('minutes', e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-slate-600"
+                className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500"
               />
               <span className="text-[9px] text-slate-600 block text-center uppercase">Minutos</span>
             </div>
           </div>
+
+          {totalMinutes > 0 && (
+            <div className="bg-slate-500/10 border border-slate-500/20 rounded-lg p-2.5 flex items-baseline gap-2 mt-2">
+              <span className="text-slate-500 font-bold text-base">{totalMinutes}</span>
+              <span className="text-slate-500/70 text-[10px] uppercase font-bold">minutos totales</span>
+            </div>
+          )}
         </div>
 
         <div className="h-px bg-slate-800" />
@@ -143,20 +191,18 @@ export function Inspector({
 
           {availableTargets.length > 0 && (
             <div className="flex gap-2 pt-2">
-              <select
-                className="flex-1 bg-slate-900 border border-slate-800 rounded-md px-2 py-1.5 text-xs text-slate-400 focus:outline-none focus:border-slate-600"
-                onChange={(e) => {
-                  if (e.target.value) {
-                    onAddEdge(selectedNode.id, e.target.value);
-                    e.target.value = '';
-                  }
-                }}
-              >
-                <option value="">Añadir transición...</option>
-                {availableTargets.map((n) => (
-                  <option key={n.id} value={n.id}>→ {n.data.label}</option>
-                ))}
-              </select>
+              <Select onValueChange={(value) => onAddEdge(selectedNode.id, value)}>
+                <SelectTrigger className="w-full bg-slate-900 border-slate-800 text-slate-400 text-xs h-8">
+                  <SelectValue placeholder="Añadir transición..." />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                  {availableTargets.map((n) => (
+                    <SelectItem key={n.id} value={n.id} className="text-xs focus:bg-indigo-600 focus:text-white">
+                      → {n.data.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
         </div>

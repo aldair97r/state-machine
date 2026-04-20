@@ -18,7 +18,7 @@ export function WorkflowEdge({
 
   if (isBackward) {
     // For backward edges, create a more pronounced curve to avoid overlapping with nodes
-    const midX = (sourceX + targetX) / 2;
+    // const midX = (sourceX + targetX) / 2;
     // Route above or below depending on vertical distance
     const offset = Math.abs(targetY - sourceY) < 50 ? -100 : (targetY > sourceY ? -60 : 60);
 

@@ -2,6 +2,14 @@ import { useState } from 'react';
 import { type Group } from '@/types/workflow';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface AddStateModalProps {
   groups: Group[];
@@ -11,7 +19,7 @@ interface AddStateModalProps {
 
 export function AddStateModal({ groups, onAdd, onClose }: AddStateModalProps) {
   const [label, setLabel] = useState('');
-  const [groupId, setGroupId] = useState(groups[0]?.id || '');
+  const [groupId, setGroupId] = useState(groups[0]?.id.toString() || '');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,30 +41,31 @@ export function AddStateModal({ groups, onAdd, onClose }: AddStateModalProps) {
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase text-slate-500">Nombre del estado</label>
-            <input
+            <Input
               autoFocus
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Ej. En revisión técnica"
-              className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-slate-500"
+              className="bg-slate-950 border-slate-800 text-slate-200 focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500"
               required
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase text-slate-500">Grupo</label>
-            <select
-              value={groupId}
-              onChange={(e) => setGroupId(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-slate-500"
-            >
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
+            <Select value={groupId} onValueChange={setGroupId}>
+              <SelectTrigger className="w-full bg-slate-950 border-slate-800 text-slate-300">
+                <SelectValue placeholder="Seleccionar grupo" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                {groups.map((g) => (
+                  <SelectItem key={g.id} value={g.id.toString()} className="focus:bg-indigo-600 focus:text-white">
+                    {g.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex gap-3 pt-2">

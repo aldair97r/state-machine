@@ -13,26 +13,30 @@ export interface Group {
   id: string;
   label: string;
   color: string;
-  order: number;
+  order?: number;
 }
 
 export interface State {
   id: string;
   label: string;
-  group_id: string;
+  group_id?: string;
+  group?: string | number;
+  color?: string;
   is_initial: boolean;
   is_terminal: boolean;
   sla: SLA;
-  order: number;
-  canvas_position: CanvasPosition;
+  order?: number;
+  canvas_position?: CanvasPosition;
 }
 
 export interface Transition {
-  id: string;
-  from_state_id: string;
-  to_state_id: string;
-  label: string | null;
-  order: number;
+  id: string | number;
+  from_state_id?: string;
+  to_state_id?: string;
+  from?: string | number;
+  to?: string | number;
+  label?: string | null;
+  order?: number;
   note?: string;
 }
 
