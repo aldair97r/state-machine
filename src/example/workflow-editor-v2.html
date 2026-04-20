@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Workflow Editor — Ciclo de vida de Ticket</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1117;
+    --bg2:       #181c27;
+    --bg3:       #1e2334;
+    --bg4:       #252b3b;
+    --border:    #2e3550;
+    --border2:   #3d4668;
+    --text:      #e2e8f0;
+    --text2:     #94a3b8;
+    --text3:     #64748b;
+    --accent:    #6366f1;
+    --accent2:   #818cf8;
+    --accent-bg: rgba(99,102,241,.15);
+    --green:     #22c55e;
+    --green-bg:  rgba(34,197,94,.12);
+    --amber:     #f59e0b;
+    --amber-bg:  rgba(245,158,11,.12);
+    --red:       #ef4444;
+    --red-bg:    rgba(239,68,68,.12);
+    --teal:      #14b8a6;
+    --teal-bg:   rgba(20,184,166,.12);
+    --inicio-color:  #6366f1;
+    --proceso-color: #14b8a6;
+    --fin-color:     #f59e0b;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-size: 13px;
+  }
+
+  /* ── Top bar ── */
+  #topbar {
+    height: 48px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 10px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  #topbar .logo {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px; letter-spacing: -.3px;
+  }
+  #topbar .logo svg { color: var(--accent2); flex-shrink: 0; }
+  #topbar .sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+  #topbar .toolbar-btn {
+    height: 28px; padding: 0 10px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: transparent; color: var(--text2);
+    font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px;
+    transition: background .15s, color .15s, border-color .15s; white-space: nowrap;
+  }
+  #topbar .toolbar-btn:hover { background: var(--bg4); color: var(--text); border-color: var(--border2); }
+  #topbar .toolbar-btn.active { background: var(--accent-bg); color: var(--accent2); border-color: var(--accent); }
+  #topbar .spacer { flex: 1; }
+  #topbar .status-badge {
+    font-size: 11px; padding: 3px 8px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--text3); background: var(--bg3);
+  }
+
+  /* ── Main layout ── */
+  #layout { display: grid; grid-template-columns: 220px 1fr 290px; flex: 1; overflow: hidden; }
+
+  /* ── Panels ── */
+  .panel { background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+  .panel-header {
+    padding: 10px 14px; font-size: 11px; font-weight: 600; letter-spacing: .6px;
+    text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  }
+  .panel-body { overflow-y: auto; flex: 1; padding: 8px; }
+  .panel-body::-webkit-scrollbar { width: 4px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── Tree ── */
+  .tree-group { margin-bottom: 4px; }
+  .tree-group-header {
+    display: flex; align-items: center; gap: 6px; padding: 5px 6px;
+    border-radius: var(--radius); cursor: pointer; transition: background .1s; user-select: none;
+  }
+  .tree-group-header:hover { background: var(--bg4); }
+  .tree-group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .tree-group-label { font-weight: 600; font-size: 12px; }
+  .tree-children { padding-left: 18px; }
+  .tree-node {
+    display: flex; align-items: center; gap: 7px; padding: 5px 7px;
+    border-radius: var(--radius); cursor: pointer; transition: background .1s; user-select: none;
+  }
+  .tree-node:hover { background: var(--bg4); }
+  .tree-node.selected { background: var(--accent-bg); }
+  .tree-node .node-icon { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid currentColor; flex-shrink: 0; }
+  .tree-node .node-label { font-size: 12px; color: var(--text2); flex: 1; }
+  .tree-node.selected .node-label { color: var(--text); }
+  .tree-node .node-sla {
+    font-size: 10px; color: var(--text3); background: var(--bg4);
+    padding: 1px 5px; border-radius: 10px; border: 1px solid var(--border); white-space: nowrap;
+  }
+
+  /* ── Canvas ── */
+  #canvas-wrap {
+    position: relative; overflow: hidden; background: var(--bg);
+    background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible; }
+
+  .edge { fill: none; stroke: var(--border2); stroke-width: 1.5; marker-end: url(#arrow); cursor: pointer; transition: stroke .15s; }
+  .edge:hover, .edge.highlighted { stroke: var(--accent2); stroke-width: 2; }
+  .edge.dimmed { stroke: var(--border); opacity: .3; }
+  .edge-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+
+  .node-group { cursor: grab; }
+  .node-group:active { cursor: grabbing; }
+  .node-rect { rx: 10; fill: var(--bg3); stroke: var(--border2); stroke-width: 1.5; transition: stroke .15s, fill .15s; }
+  .node-group.selected .node-rect { stroke-width: 2; fill: var(--bg4); }
+  .node-group.highlighted .node-rect { stroke: var(--accent); fill: var(--accent-bg); }
+  .node-group.dimmed .node-rect { opacity: .35; }
+  .node-label-text { font-family: var(--font); font-size: 12px; font-weight: 500; fill: var(--text); pointer-events: none; dominant-baseline: central; text-anchor: middle; }
+  .node-group.dimmed .node-label-text { fill: var(--text3); }
+  .node-badge { font-family: var(--font); font-size: 9px; font-weight: 600; letter-spacing: .5px; pointer-events: none; dominant-baseline: central; text-anchor: middle; }
+  .node-sla-text { font-family: var(--font); font-size: 9px; fill: var(--text3); pointer-events: none; dominant-baseline: central; text-anchor: middle; }
+
+  #connect-line { fill: none; stroke: var(--accent2); stroke-width: 1.5; stroke-dasharray: 5,3; pointer-events: none; display: none; }
+
+  .port { fill: var(--bg3); stroke: var(--border2); stroke-width: 1.5; cursor: crosshair; transition: fill .15s, stroke .15s; }
+  .port:hover { fill: var(--accent); stroke: var(--accent2); }
+
+  /* ── Detail panel ── */
+  #detail-empty { padding: 24px 14px; color: var(--text3); font-size: 12px; text-align: center; line-height: 1.7; }
+  #detail-content { padding: 12px; }
+  .detail-badge {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
+    border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: .3px; margin-bottom: 12px;
+  }
+  .detail-field { margin-bottom: 14px; }
+  .detail-label { font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; }
+  .detail-value { font-size: 13px; font-weight: 500; color: var(--text); }
+  .detail-sep { height: 1px; background: var(--border); margin: 14px 0; }
+
+  /* Editable field */
+  .detail-edit-wrap { display: flex; gap: 5px; align-items: center; }
+  .detail-edit-input {
+    flex: 1; height: 30px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-size: 13px; padding: 0 8px;
+    outline: none; font-family: var(--font); transition: border-color .15s;
+  }
+  .detail-edit-input:focus { border-color: var(--accent); }
+  .detail-save-btn {
+    height: 30px; padding: 0 10px; border-radius: var(--radius);
+    border: 1px solid var(--accent); background: var(--accent-bg); color: var(--accent2);
+    font-size: 12px; cursor: pointer; white-space: nowrap; font-family: var(--font);
+    transition: background .15s;
+  }
+  .detail-save-btn:hover { background: rgba(99,102,241,.28); }
+
+  /* SLA input row */
+  .sla-row { display: flex; gap: 6px; align-items: center; }
+  .sla-input-wrap { display: flex; align-items: center; gap: 4px; }
+  .sla-num {
+    width: 54px; height: 30px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-size: 13px; padding: 0 8px;
+    outline: none; font-family: var(--font); text-align: center;
+    transition: border-color .15s;
+  }
+  .sla-num:focus { border-color: var(--accent); }
+  .sla-unit { font-size: 11px; color: var(--text3); }
+  .sla-save-btn {
+    height: 30px; padding: 0 10px; border-radius: var(--radius);
+    border: 1px solid var(--border2); background: var(--bg4); color: var(--text2);
+    font-size: 12px; cursor: pointer; font-family: var(--font); transition: background .15s, border-color .15s;
+  }
+  .sla-save-btn:hover { background: var(--bg3); border-color: var(--accent); color: var(--accent2); }
+  .sla-display {
+    display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 12px; color: var(--text2);
+  }
+  .sla-display .sla-icon { font-size: 13px; }
+  .sla-display .sla-val { color: var(--amber); font-weight: 600; }
+
+  .transition-row {
+    display: flex; align-items: center; justify-content: space-between; padding: 6px 8px;
+    border-radius: var(--radius); margin-bottom: 4px; background: var(--bg3); border: 1px solid var(--border);
+  }
+  .transition-row:hover { border-color: var(--border2); }
+  .transition-arrow { font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 4px; }
+  .transition-arrow .arr { color: var(--text3); }
+  .del-btn {
+    width: 20px; height: 20px; border-radius: var(--radius); border: none; background: transparent;
+    color: var(--text3); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; line-height: 1; transition: color .1s, background .1s;
+  }
+  .del-btn:hover { color: var(--red); background: var(--red-bg); }
+
+  .add-transition { margin-top: 8px; display: flex; gap: 6px; }
+  .add-transition select {
+    flex: 1; height: 28px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-size: 12px; padding: 0 6px; outline: none; cursor: pointer;
+  }
+  .add-transition select:focus { border-color: var(--accent); }
+  .btn-add {
+    height: 28px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--accent);
+    background: var(--accent-bg); color: var(--accent2); font-size: 12px; cursor: pointer;
+    white-space: nowrap; transition: background .15s;
+  }
+  .btn-add:hover { background: rgba(99,102,241,.28); }
+
+  /* ── Sim bar ── */
+  #sim-bar {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: var(--bg2); border: 1px solid var(--border2); border-radius: 40px;
+    padding: 6px 12px; display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text2); pointer-events: all;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4); z-index: 5;
+  }
+  #sim-bar.hidden { display: none; }
+  #sim-state-label { font-weight: 600; color: var(--text); min-width: 100px; text-align: center; }
+  .sim-btn {
+    width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border2);
+    background: var(--bg4); color: var(--text); cursor: pointer; display: flex; align-items: center;
+    justify-content: center; transition: background .15s, border-color .15s; font-size: 13px;
+  }
+  .sim-btn:hover { background: var(--bg3); border-color: var(--accent); color: var(--accent2); }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 20px; right: 20px; background: var(--bg2);
+    border: 1px solid var(--border2); border-radius: var(--radius-lg); padding: 10px 14px;
+    font-size: 12px; color: var(--text); pointer-events: none; opacity: 0; transform: translateY(8px);
+    transition: opacity .2s, transform .2s; z-index: 1000; max-width: 260px;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+  #toast.error { border-color: var(--red); color: var(--red); }
+
+  .hint { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--text3); pointer-events: none; white-space: nowrap; }
+
+  /* ── Add state btn ── */
+  .btn-add-state {
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    width: calc(100% - 0px); margin-top: 6px; height: 30px; border-radius: var(--radius);
+    border: 1px dashed var(--border2); background: transparent; color: var(--text3);
+    font-size: 12px; cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+    font-family: var(--font);
+  }
+  .btn-add-state:hover { border-color: var(--accent); color: var(--accent2); background: var(--accent-bg); }
+
+  /* ── Delete state btn ── */
+  .btn-delete-state {
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    width: 100%; height: 30px; margin-top: 14px; border-radius: var(--radius);
+    border: 1px solid var(--red-bg); background: transparent; color: var(--red);
+    font-size: 12px; cursor: pointer; transition: background .15s, border-color .15s;
+    font-family: var(--font);
+  }
+  .btn-delete-state:hover { background: var(--red-bg); border-color: var(--red); }
+
+  /* ── Modal ── */
+  #modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+    z-index: 500; display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  #modal-overlay.open { opacity: 1; pointer-events: all; }
+  #modal-box {
+    background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius-lg);
+    padding: 20px; width: 320px; max-width: calc(100vw - 32px);
+    box-shadow: 0 20px 60px rgba(0,0,0,.5); transform: translateY(8px); transition: transform .2s;
+  }
+  #modal-overlay.open #modal-box { transform: translateY(0); }
+  .modal-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+  .modal-field { margin-bottom: 12px; }
+  .modal-label { font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text3); margin-bottom: 5px; }
+  .modal-input {
+    width: 100%; height: 32px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-size: 13px; padding: 0 10px;
+    outline: none; transition: border-color .15s; font-family: var(--font);
+  }
+  .modal-input:focus { border-color: var(--accent); }
+  .modal-select {
+    width: 100%; height: 32px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-size: 13px; padding: 0 10px;
+    outline: none; cursor: pointer; font-family: var(--font);
+  }
+  .modal-select:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .modal-cancel {
+    flex: 1; height: 32px; border-radius: var(--radius); border: 1px solid var(--border);
+    background: transparent; color: var(--text2); font-size: 12px; cursor: pointer;
+    transition: background .15s; font-family: var(--font);
+  }
+  .modal-cancel:hover { background: var(--bg4); }
+  .modal-confirm {
+    flex: 1; height: 32px; border-radius: var(--radius); border: 1px solid var(--accent);
+    background: var(--accent-bg); color: var(--accent2); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: background .15s; font-family: var(--font);
+  }
+  .modal-confirm:hover { background: rgba(99,102,241,.28); }
+
+  /* ── Mobile ── */
+  #btn-menu {
+    display: none; width: 32px; height: 32px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: transparent; color: var(--text2);
+    cursor: pointer; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  #mobile-drawer {
+    display: none; position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
+    background: var(--bg); z-index: 200; overflow-y: auto; flex-direction: column;
+  }
+  #mobile-drawer.open { display: flex; }
+  .drawer-tab-bar { display: flex; border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; }
+  .drawer-tab {
+    flex: 1; height: 40px; border: none; background: transparent; color: var(--text3);
+    font-size: 12px; font-weight: 600; cursor: pointer; letter-spacing: .4px;
+    text-transform: uppercase; border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s; font-family: var(--font);
+  }
+  .drawer-tab.active { color: var(--accent2); border-color: var(--accent); }
+  .drawer-tab-content { display: none; flex: 1; padding: 8px; }
+  .drawer-tab-content.active { display: block; }
+
+  @media (max-width: 768px) {
+    #btn-menu { display: flex; }
+    #layout { grid-template-columns: 1fr; }
+    #panel-tree, #panel-detail { display: none; }
+    #sim-bar { max-width: calc(100vw - 32px); }
+    .hint { display: none; }
+    #topbar { gap: 6px; padding: 0 10px; }
+    #topbar .logo .logo-text { display: none; }
+    #topbar .sep { display: none; }
+    #topbar .status-badge { display: none; }
+    #topbar .toolbar-btn .btn-text { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="logo">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="1" width="6" height="6" rx="2" fill="currentColor" opacity=".8"/>
+      <rect x="9" y="1" width="6" height="6" rx="2" fill="currentColor" opacity=".5"/>
+      <rect x="1" y="9" width="6" height="6" rx="2" fill="currentColor" opacity=".5"/>
+      <rect x="9" y="9" width="6" height="6" rx="2" fill="currentColor" opacity=".3"/>
+    </svg>
+    <span class="logo-text">Workflow Editor</span>
+  </div>
+  <div class="sep"></div>
+  <button class="toolbar-btn" id="btn-fit">⊡ <span class="btn-text">Ajustar vista</span></button>
+  <button class="toolbar-btn" id="btn-reset">↺ <span class="btn-text">Restablecer</span></button>
+  <div class="sep"></div>
+  <button class="toolbar-btn" id="btn-sim">▶ <span class="btn-text">Simular flujo</span></button>
+  <div class="spacer"></div>
+  <div class="status-badge" id="status-badge">Sin cambios</div>
+  <button id="btn-menu" aria-label="Menú" onclick="toggleDrawer()">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/>
+    </svg>
+  </button>
+</div>
+
+<div id="layout">
+  <div class="panel" id="panel-tree">
+    <div class="panel-header">
+      <span>Estados</span>
+      <span id="state-count" style="font-weight:400;color:var(--text3)"></span>
+    </div>
+    <div class="panel-body" id="tree-body"></div>
+  </div>
+
+  <div id="canvas-wrap">
+    <div class="hint" id="canvas-hint">Arrastre un nodo · Puerto → para conectar</div>
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="var(--border2)"/>
+        </marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="var(--accent2)"/>
+        </marker>
+      </defs>
+      <g id="edges-layer"></g>
+      <g id="nodes-layer"></g>
+      <line id="connect-line"/>
+    </svg>
+  </div>
+
+  <div class="panel" id="panel-detail">
+    <div class="panel-header"><span>Detalles</span></div>
+    <div class="panel-body" id="detail-body">
+      <div id="detail-empty">Selecciona un estado<br>para ver sus detalles</div>
+      <div id="detail-content" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="modal-overlay" onclick="handleModalOverlayClick(event)">
+  <div id="modal-box">
+    <div class="modal-title">➕ Nuevo estado</div>
+    <div class="modal-field">
+      <div class="modal-label">Nombre</div>
+      <input class="modal-input" id="modal-name" type="text" placeholder="Ej. En espera de aprobación" maxlength="40" />
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Grupo</div>
+      <select class="modal-select" id="modal-group"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="modal-confirm" onclick="confirmAddState()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<div id="mobile-drawer">
+  <div class="drawer-tab-bar">
+    <button class="drawer-tab active" id="dtab-tree" onclick="switchDrawerTab('tree')">Estados</button>
+    <button class="drawer-tab" id="dtab-detail" onclick="switchDrawerTab('detail')">Detalles</button>
+  </div>
+  <div class="drawer-tab-content active" id="dcontent-tree"></div>
+  <div class="drawer-tab-content" id="dcontent-detail"></div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════╗
+// ║  STORE                                                   ║
+// ╚══════════════════════════════════════════════════════════╝
+
+// Ticket lifecycle use case:
+// Inicio → En Revisión → Incompleto → En Revisión (ciclo permitido para tickets)
+const INITIAL_DATA = {
+  states: [
+    { id: "inicio",        label: "Inicio" },
+    { id: "nuevo_ticket",  label: "Nuevo Ticket",   parent: "inicio",  slaH: 1,  slaM: 0  },
+    { id: "proceso",       label: "Proceso" },
+    { id: "en_revision",   label: "En Revisión",    parent: "proceso", slaH: 8,  slaM: 0  },
+    { id: "incompleto",    label: "Incompleto",     parent: "proceso", slaH: 24, slaM: 0  },
+    { id: "en_espera",     label: "En Espera",      parent: "proceso", slaH: 48, slaM: 0  },
+    { id: "fin",           label: "Fin" },
+    { id: "resuelto",      label: "Resuelto",       parent: "fin",     slaH: 0,  slaM: 0  },
+    { id: "cerrado",       label: "Cerrado",        parent: "fin",     slaH: 0,  slaM: 0  }
+  ],
+  transitions: [
+    { from: "nuevo_ticket", to: "en_revision" },
+    { from: "en_revision",  to: "incompleto"  },
+    { from: "en_revision",  to: "en_espera"   },
+    { from: "en_revision",  to: "resuelto"    },
+    { from: "incompleto",   to: "en_revision" },   // Ciclo intencional para tickets
+    { from: "en_espera",    to: "en_revision"  },
+    { from: "en_espera",    to: "cerrado"      }
+  ]
+};
+
+const DEFAULT_POSITIONS = {
+  inicio:       { x: 60,  y: 120 },
+  nuevo_ticket: { x: 60,  y: 230 },
+  proceso:      { x: 280, y: 60  },
+  en_revision:  { x: 260, y: 180 },
+  incompleto:   { x: 260, y: 300 },
+  en_espera:    { x: 260, y: 420 },
+  fin:          { x: 520, y: 60  },
+  resuelto:     { x: 510, y: 180 },
+  cerrado:      { x: 510, y: 300 }
+};
+
+const GROUPS = {
+  inicio:  { color: "var(--inicio-color)",  badge: "INICIO",  hex: "#6366f1" },
+  proceso: { color: "var(--proceso-color)", badge: "PROCESO", hex: "#14b8a6" },
+  fin:     { color: "var(--fin-color)",     badge: "FIN",     hex: "#f59e0b" }
+};
+
+// ── Persistence ──
+const STORE_KEY = "wf_ticket_v3";
+
+function loadStore() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate: ensure slaH/slaM on all leaf states
+      parsed.states.forEach(s => {
+        if (s.parent) { s.slaH = s.slaH ?? 0; s.slaM = s.slaM ?? 0; }
+      });
+      return parsed;
+    }
+  } catch(e) {}
+  return {
+    states: JSON.parse(JSON.stringify(INITIAL_DATA.states)),
+    transitions: JSON.parse(JSON.stringify(INITIAL_DATA.transitions)),
+    positions: JSON.parse(JSON.stringify(DEFAULT_POSITIONS))
+  };
+}
+
+function saveStore() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      states: store.states,
+      transitions: store.transitions,
+      positions: store.positions
+    }));
+    setStatus("Guardado");
+  } catch(e) {}
+}
+
+let store = loadStore();
+if (!store.positions) store.positions = JSON.parse(JSON.stringify(DEFAULT_POSITIONS));
+store.states.forEach(s => {
+  if (!store.positions[s.id])
+    store.positions[s.id] = DEFAULT_POSITIONS[s.id] || { x: 200 + Math.random()*250, y: 150 + Math.random()*200 };
+  if (s.parent) { s.slaH = s.slaH ?? 0; s.slaM = s.slaM ?? 0; }
+});
+
+// ── Helpers ──
+function stateById(id) { return store.states.find(s => s.id === id); }
+function isUnderFin(id) { const s = stateById(id); return s && (s.id === "fin" || s.parent === "fin"); }
+function getOutgoing(id) { return store.transitions.filter(t => t.from === id); }
+function getGroupColor(id) {
+  const s = stateById(id);
+  const gid = s && s.parent ? s.parent : (s ? s.id : null);
+  return GROUPS[gid] ? GROUPS[gid].color : "var(--border2)";
+}
+function getGroupHex(id) {
+  const s = stateById(id);
+  const gid = s && s.parent ? s.parent : (s ? s.id : null);
+  return GROUPS[gid] ? GROUPS[gid].hex : "#3d4668";
+}
+function getGroupBadge(id) {
+  const s = stateById(id);
+  const gid = s && s.parent ? s.parent : null;
+  return gid && GROUPS[gid] ? GROUPS[gid].badge : null;
+}
+function formatSLA(h, m) {
+  if (!h && !m) return null;
+  let parts = [];
+  if (h) parts.push(`${h}h`);
+  if (m) parts.push(`${m}m`);
+  return parts.join(" ");
+}
+function setStatus(msg) {
+  const el = document.getElementById("status-badge");
+  el.textContent = msg;
+  setTimeout(() => el.textContent = "Sin cambios", 2000);
+}
+function toast(msg, type = "") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "show" + (type ? " " + type : "");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.className = "", 2800);
+}
+
+// ── Cycle check (BFS) — NOTE: for ticket workflows cycles are ALLOWED ──
+// We keep the check but allow overriding via confirm
+function hasCycle(transitions, from, to) {
+  const adj = {};
+  transitions.forEach(t => { if (!adj[t.from]) adj[t.from] = []; adj[t.from].push(t.to); });
+  const visited = new Set(), queue = [to];
+  while (queue.length) {
+    const cur = queue.shift();
+    if (cur === from) return true;
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    (adj[cur] || []).forEach(n => queue.push(n));
+  }
+  return false;
+}
+
+// ════════════════════════════════════════════════════════════
+//  TREE PANEL
+// ════════════════════════════════════════════════════════════
+let selectedNode = null;
+
+function renderTree() {
+  const body = document.getElementById("tree-body");
+  body.innerHTML = "";
+  const leaves = store.states.filter(s => s.parent);
+  document.getElementById("state-count").textContent = leaves.length + " estados";
+
+  store.states.filter(s => !s.parent).forEach(root => {
+    const meta = GROUPS[root.id] || {};
+    const grp = document.createElement("div");
+    grp.className = "tree-group";
+
+    const hdr = document.createElement("div");
+    hdr.className = "tree-group-header";
+    hdr.innerHTML = `<div class="tree-group-dot" style="background:${meta.color||'#888'}"></div>
+      <span class="tree-group-label" style="color:${meta.color||'var(--text)'}">${root.label}</span>`;
+    hdr.addEventListener("click", () => selectNode(root.id));
+    grp.appendChild(hdr);
+
+    const childWrap = document.createElement("div");
+    childWrap.className = "tree-children";
+    store.states.filter(s => s.parent === root.id).forEach(child => {
+      const sla = formatSLA(child.slaH, child.slaM);
+      const row = document.createElement("div");
+      row.className = "tree-node" + (selectedNode === child.id ? " selected" : "");
+      row.dataset.id = child.id;
+      row.style.color = meta.color || "var(--text2)";
+      row.innerHTML = `<div class="node-icon"></div>
+        <span class="node-label">${child.label}</span>
+        ${sla ? `<span class="node-sla">⏱ ${sla}</span>` : ""}`;
+      row.addEventListener("click", () => selectNode(child.id));
+      childWrap.appendChild(row);
+    });
+    grp.appendChild(childWrap);
+    body.appendChild(grp);
+  });
+
+  const addBtn = document.createElement("button");
+  addBtn.className = "btn-add-state";
+  addBtn.innerHTML = `<span>+</span> Nuevo estado`;
+  addBtn.addEventListener("click", openModal);
+  body.appendChild(addBtn);
+
+  syncDrawer();
+}
+
+// ════════════════════════════════════════════════════════════
+//  CANVAS
+// ════════════════════════════════════════════════════════════
+const NODE_W = 130, NODE_H = 44, PORT_R = 5;
+const svgNS = "http://www.w3.org/2000/svg";
+let pan = { x: 40, y: 40 }, scale = 1;
+let isPanning = false, panStart = null;
+let dragging = null, connecting = null;
+let rootG;
+
+function initCanvas() {
+  const svg = document.getElementById("canvas");
+  rootG = document.createElementNS(svgNS, "g");
+  rootG.id = "root-g";
+  svg.insertBefore(rootG, svg.firstChild);
+  rootG.appendChild(document.getElementById("edges-layer"));
+  rootG.appendChild(document.getElementById("nodes-layer"));
+  applyTransform();
+  svg.addEventListener("mousedown", onSvgMouseDown);
+  window.addEventListener("mousemove", onSvgMouseMove);
+  window.addEventListener("mouseup", onSvgMouseUp);
+  svg.addEventListener("wheel", onWheel, { passive: false });
+  // Touch support
+  svg.addEventListener("touchstart", onTouchStart, { passive: false });
+  svg.addEventListener("touchmove", onTouchMove, { passive: false });
+  svg.addEventListener("touchend", onTouchEnd);
+}
+
+function applyTransform() {
+  if (rootG) rootG.setAttribute("transform", `translate(${pan.x},${pan.y}) scale(${scale})`);
+}
+function svgPoint(e) {
+  const svg = document.getElementById("canvas");
+  const rect = svg.getBoundingClientRect();
+  return { x: (e.clientX - rect.left - pan.x) / scale, y: (e.clientY - rect.top - pan.y) / scale };
+}
+
+// Mouse pan/drag/connect
+function onSvgMouseDown(e) {
+  if (e.target.classList.contains("edge-hit") || e.target.classList.contains("edge")) return;
+  if (dragging || connecting) return;
+  if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    isPanning = true;
+    panStart = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    e.preventDefault();
+  }
+}
+function onWheel(e) {
+  e.preventDefault();
+  const f = e.deltaY < 0 ? 1.1 : 0.9;
+  const svg = document.getElementById("canvas");
+  const rect = svg.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  pan.x = mx - (mx - pan.x) * f;
+  pan.y = my - (my - pan.y) * f;
+  scale = Math.min(2.5, Math.max(0.25, scale * f));
+  applyTransform();
+}
+function onSvgMouseMove(e) {
+  if (isPanning) {
+    pan.x = e.clientX - panStart.x; pan.y = e.clientY - panStart.y;
+    applyTransform(); return;
+  }
+  if (dragging) {
+    const p = svgPoint(e);
+    store.positions[dragging.id] = { x: p.x - dragging.ox, y: p.y - dragging.oy };
+    repositionNode(dragging.id); repositionEdges(); return;
+  }
+  if (connecting) {
+    const p = svgPoint(e);
+    const line = document.getElementById("connect-line");
+    line.setAttribute("x2", p.x); line.setAttribute("y2", p.y);
+  }
+}
+function onSvgMouseUp(e) {
+  if (isPanning) { isPanning = false; saveStore(); return; }
+  if (dragging) { dragging = null; saveStore(); return; }
+  if (connecting) {
+    const p = svgPoint(e);
+    const target = store.states.find(s => {
+      const pos = store.positions[s.id];
+      return pos && p.x >= pos.x && p.x <= pos.x + NODE_W && p.y >= pos.y && p.y <= pos.y + NODE_H;
+    });
+    if (target && target.id !== connecting.fromId) addTransition(connecting.fromId, target.id);
+    endConnect();
+  }
+}
+
+// Touch support (pinch-zoom + pan)
+let lastTouch = null, lastDist = null;
+function onTouchStart(e) {
+  if (e.touches.length === 1) {
+    lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY, px: pan.x, py: pan.y };
+  } else if (e.touches.length === 2) {
+    lastDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  }
+  e.preventDefault();
+}
+function onTouchMove(e) {
+  if (e.touches.length === 1 && lastTouch) {
+    pan.x = lastTouch.px + (e.touches[0].clientX - lastTouch.x);
+    pan.y = lastTouch.py + (e.touches[0].clientY - lastTouch.y);
+    applyTransform();
+  } else if (e.touches.length === 2 && lastDist) {
+    const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    scale = Math.min(2.5, Math.max(0.25, scale * (d / lastDist)));
+    lastDist = d; applyTransform();
+  }
+  e.preventDefault();
+}
+function onTouchEnd(e) { lastTouch = null; lastDist = null; saveStore(); }
+
+function startConnect(fromId, x, y) {
+  connecting = { fromId, x1: x, y1: y };
+  const line = document.getElementById("connect-line");
+  line.style.display = "block";
+  line.setAttribute("x1", x); line.setAttribute("y1", y);
+  line.setAttribute("x2", x); line.setAttribute("y2", y);
+  line.setAttribute("marker-end", "url(#arrow-accent)");
+}
+function endConnect() {
+  connecting = null;
+  document.getElementById("connect-line").style.display = "none";
+}
+
+// ── Render graph ──
+function renderGraph() { renderEdges(); renderNodes(); }
+
+function renderNodes() {
+  const layer = document.getElementById("nodes-layer");
+  layer.innerHTML = "";
+  store.states.filter(s => s.parent).forEach(s => {
+    const pos = store.positions[s.id] || { x: 100, y: 100 };
+    const color = getGroupColor(s.id);
+    const badge = getGroupBadge(s.id);
+    const sla = formatSLA(s.slaH, s.slaM);
+
+    const g = document.createElementNS(svgNS, "g");
+    g.id = "node-" + s.id; g.classList.add("node-group");
+    g.setAttribute("transform", `translate(${pos.x},${pos.y})`);
+
+    const rect = document.createElementNS(svgNS, "rect");
+    rect.classList.add("node-rect");
+    rect.setAttribute("width", NODE_W); rect.setAttribute("height", NODE_H);
+    rect.setAttribute("rx", "10"); rect.style.stroke = color;
+    g.appendChild(rect);
+
+    // Label — shift up if SLA shown
+    const lbl = document.createElementNS(svgNS, "text");
+    lbl.classList.add("node-label-text");
+    lbl.setAttribute("x", NODE_W / 2);
+    lbl.setAttribute("y", sla ? NODE_H / 2 - 6 : NODE_H / 2);
+    lbl.textContent = s.label;
+    g.appendChild(lbl);
+
+    // SLA sub-label
+    if (sla) {
+      const slaT = document.createElementNS(svgNS, "text");
+      slaT.classList.add("node-sla-text");
+      slaT.setAttribute("x", NODE_W / 2);
+      slaT.setAttribute("y", NODE_H / 2 + 8);
+      slaT.textContent = "⏱ " + sla;
+      g.appendChild(slaT);
+    }
+
+    if (badge) {
+      const bt = document.createElementNS(svgNS, "text");
+      bt.classList.add("node-badge");
+      bt.setAttribute("x", NODE_W / 2); bt.setAttribute("y", -6);
+      bt.style.fill = color; bt.style.opacity = ".7";
+      bt.textContent = badge;
+      g.appendChild(bt);
+    }
+
+    if (!isUnderFin(s.id)) {
+      const port = document.createElementNS(svgNS, "circle");
+      port.classList.add("port");
+      port.setAttribute("cx", NODE_W + PORT_R + 2); port.setAttribute("cy", NODE_H / 2);
+      port.setAttribute("r", PORT_R); port.style.stroke = color;
+      port.addEventListener("mousedown", ev => {
+        ev.stopPropagation();
+        startConnect(s.id, pos.x + NODE_W + PORT_R + 2, pos.y + NODE_H / 2);
+      });
+      g.appendChild(port);
+    }
+
+    g.addEventListener("mousedown", ev => {
+      if (ev.target.classList.contains("port")) return;
+      ev.stopPropagation();
+      const p = svgPoint(ev);
+      dragging = { id: s.id, ox: p.x - pos.x, oy: p.y - pos.y };
+      selectNode(s.id);
+    });
+    g.addEventListener("click", ev => { ev.stopPropagation(); selectNode(s.id); });
+
+    layer.appendChild(g);
+  });
+  refreshHighlights();
+}
+
+function repositionNode(id) {
+  const g = document.getElementById("node-" + id);
+  const pos = store.positions[id];
+  if (g && pos) g.setAttribute("transform", `translate(${pos.x},${pos.y})`);
+}
+
+function renderEdges() {
+  document.getElementById("edges-layer").innerHTML = "";
+  store.transitions.forEach((t, i) => renderEdge(t, i));
+}
+
+function renderEdge(t) {
+  const layer = document.getElementById("edges-layer");
+  const fp = store.positions[t.from], tp = store.positions[t.to];
+  if (!fp || !tp) return;
+
+  const x1 = fp.x + NODE_W, y1 = fp.y + NODE_H / 2;
+  const x2 = tp.x,          y2 = tp.y + NODE_H / 2;
+  const dx = x2 - x1, cpx = Math.abs(dx) < 20 ? 60 : dx * 0.4;
+
+  // For reverse/cycle edges, use a curved route going around
+  let d;
+  if (x2 <= fp.x + NODE_W + 10) {
+    // Cycle or backward edge: route above/below
+    const oy = y1 < y2 ? -40 : 40;
+    d = `M ${x1},${y1} C ${x1+60},${y1+oy} ${x2-60},${y2+oy} ${x2},${y2}`;
+  } else {
+    d = `M ${x1},${y1} C ${x1+cpx},${y1} ${x2-cpx},${y2} ${x2},${y2}`;
+  }
+
+  const g = document.createElementNS(svgNS, "g");
+  g.id = `edge-${t.from}-${t.to}`;
+  g.dataset.from = t.from; g.dataset.to = t.to;
+
+  const path = document.createElementNS(svgNS, "path");
+  path.setAttribute("d", d); path.classList.add("edge");
+  path.setAttribute("marker-end", "url(#arrow)");
+
+  const hit = document.createElementNS(svgNS, "path");
+  hit.setAttribute("d", d); hit.classList.add("edge-hit");
+  hit.addEventListener("click", e => {
+    e.stopPropagation();
+    if (confirm(`Eliminar transición ${t.from} → ${t.to}?`)) removeTransition(t.from, t.to);
+  });
+
+  g.appendChild(path); g.appendChild(hit);
+  layer.appendChild(g);
+}
+
+function repositionEdges() {
+  store.transitions.forEach(t => {
+    const g = document.getElementById(`edge-${t.from}-${t.to}`);
+    const fp = store.positions[t.from], tp = store.positions[t.to];
+    if (!g || !fp || !tp) return;
+    const x1 = fp.x + NODE_W, y1 = fp.y + NODE_H / 2;
+    const x2 = tp.x,          y2 = tp.y + NODE_H / 2;
+    const dx = x2 - x1, cpx = Math.abs(dx) < 20 ? 60 : dx * 0.4;
+    let d;
+    if (x2 <= fp.x + NODE_W + 10) {
+      const oy = y1 < y2 ? -40 : 40;
+      d = `M ${x1},${y1} C ${x1+60},${y1+oy} ${x2-60},${y2+oy} ${x2},${y2}`;
+    } else {
+      d = `M ${x1},${y1} C ${x1+cpx},${y1} ${x2-cpx},${y2} ${x2},${y2}`;
+    }
+    g.querySelectorAll("path").forEach(p => p.setAttribute("d", d));
+  });
+}
+
+function refreshHighlights() {
+  document.querySelectorAll(".node-group").forEach(g => g.classList.remove("selected","highlighted","dimmed"));
+  document.querySelectorAll(".edge").forEach(e => { e.classList.remove("highlighted","dimmed"); e.setAttribute("marker-end","url(#arrow)"); });
+  if (!selectedNode) return;
+  const outgoing = getOutgoing(selectedNode).map(t => t.to);
+  document.querySelectorAll(".node-group").forEach(g => {
+    const id = g.id.replace("node-","");
+    if (id === selectedNode) g.classList.add("selected");
+    else if (outgoing.includes(id)) g.classList.add("highlighted");
+    else g.classList.add("dimmed");
+  });
+  store.transitions.forEach(t => {
+    const edgeEl = document.querySelector(`#edge-${t.from}-${t.to} .edge`);
+    if (!edgeEl) return;
+    if (t.from === selectedNode) { edgeEl.classList.add("highlighted"); edgeEl.setAttribute("marker-end","url(#arrow-accent)"); }
+    else edgeEl.classList.add("dimmed");
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  SELECTION
+// ════════════════════════════════════════════════════════════
+function selectNode(id) {
+  selectedNode = id;
+  renderTree();
+  refreshHighlights();
+  renderDetailPanel();
+}
+
+// ════════════════════════════════════════════════════════════
+//  DETAIL PANEL
+// ════════════════════════════════════════════════════════════
+function renderDetailPanel() {
+  const empty = document.getElementById("detail-empty");
+  const content = document.getElementById("detail-content");
+  if (!selectedNode) { empty.style.display = ""; content.style.display = "none"; return; }
+  const s = stateById(selectedNode);
+  if (!s) return;
+  empty.style.display = "none"; content.style.display = "";
+
+  const parentId = s.parent || s.id;
+  const meta = GROUPS[parentId] || {};
+  const hex = getGroupHex(selectedNode);
+  const groupLabel = parentId.charAt(0).toUpperCase() + parentId.slice(1);
+  const outgoing = getOutgoing(selectedNode);
+  const isLeaf = !!s.parent;
+  const canAddTransition = !isUnderFin(selectedNode);
+  const sla = isLeaf ? formatSLA(s.slaH, s.slaM) : null;
+
+  const availableTargets = store.states.filter(st =>
+    st.id !== selectedNode && st.parent && !outgoing.find(t => t.to === st.id)
+  );
+
+  content.innerHTML = `
+    <div class="detail-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}40">
+      <div style="width:7px;height:7px;border-radius:50%;background:currentColor"></div>${groupLabel}
+    </div>
+
+    <div class="detail-field">
+      <div class="detail-label">Nombre</div>
+      <div class="detail-edit-wrap">
+        <input class="detail-edit-input" id="edit-label" value="${s.label}" maxlength="40" />
+        <button class="detail-save-btn" onclick="saveLabel()">Guardar</button>
+      </div>
+    </div>
+
+    <div class="detail-field">
+      <div class="detail-label">ID</div>
+      <div class="detail-value" style="font-family:monospace;font-size:11px;color:var(--text2)">${s.id}</div>
+    </div>
+
+    ${isLeaf ? `
+    <div class="detail-field">
+      <div class="detail-label">SLA (tiempo máximo en estado)</div>
+      ${sla ? `<div class="sla-display" style="margin-bottom:8px"><span class="sla-icon">⏱</span> SLA actual: <span class="sla-val">${sla}</span></div>` : ""}
+      <div class="sla-row">
+        <div class="sla-input-wrap">
+          <input class="sla-num" id="sla-h" type="number" min="0" max="999" value="${s.slaH||0}" />
+          <span class="sla-unit">horas</span>
+        </div>
+        <div class="sla-input-wrap">
+          <input class="sla-num" id="sla-m" type="number" min="0" max="59" value="${s.slaM||0}" />
+          <span class="sla-unit">min</span>
+        </div>
+        <button class="sla-save-btn" onclick="saveSLA()">✓</button>
+      </div>
+    </div>
+    ` : ""}
+
+    ${isUnderFin(selectedNode) ? `
+      <div style="padding:7px 9px;border-radius:var(--radius);background:var(--amber-bg);border:1px solid ${hex}40;font-size:11px;color:var(--amber);margin-bottom:12px">
+        ⚠ Estados de Fin no tienen transiciones salientes
+      </div>
+    ` : ""}
+
+    <div class="detail-sep"></div>
+    <div class="detail-label" style="margin-bottom:8px">Transiciones salientes (${outgoing.length})</div>
+    <div id="transition-list">
+      ${outgoing.length === 0 ? `<div style="color:var(--text3);font-size:12px;padding:4px 0">Sin transiciones</div>` : ""}
+      ${outgoing.map(t => {
+        const target = stateById(t.to);
+        const tHex = getGroupHex(t.to);
+        return `<div class="transition-row">
+          <span class="transition-arrow">
+            <span style="color:var(--text)">${s.label}</span>
+            <span class="arr">→</span>
+            <span style="color:${tHex}">${target ? target.label : t.to}</span>
+          </span>
+          <button class="del-btn" onclick="removeTransition('${t.from}','${t.to}')" title="Eliminar">✕</button>
+        </div>`;
+      }).join("")}
+    </div>
+
+    ${canAddTransition && availableTargets.length ? `
+    <div class="add-transition">
+      <select id="new-target">
+        <option value="">→ Destino…</option>
+        ${availableTargets.map(st => `<option value="${st.id}">${st.label}</option>`).join("")}
+      </select>
+      <button class="btn-add" onclick="addFromPanel()">+ Agregar</button>
+    </div>` : ""}
+
+    ${isLeaf ? `
+    <div class="detail-sep"></div>
+    <button class="btn-delete-state" onclick="deleteState('${s.id}')">🗑 Eliminar estado</button>
+    ` : ""}
+  `;
+
+  // Allow Enter on label input
+  const labelInput = document.getElementById("edit-label");
+  if (labelInput) labelInput.addEventListener("keydown", e => { if (e.key === "Enter") saveLabel(); });
+
+  syncDrawer();
+}
+
+function saveLabel() {
+  const input = document.getElementById("edit-label");
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) { toast("El nombre no puede estar vacío", "error"); return; }
+  const s = stateById(selectedNode);
+  if (!s) return;
+  s.label = val;
+  renderTree();
+  renderNodes();
+  renderDetailPanel();
+  saveStore();
+  toast(`Renombrado a "${val}"`);
+}
+
+function saveSLA() {
+  const s = stateById(selectedNode);
+  if (!s || !s.parent) return;
+  const h = parseInt(document.getElementById("sla-h")?.value || 0);
+  const m = parseInt(document.getElementById("sla-m")?.value || 0);
+  if (isNaN(h) || isNaN(m) || h < 0 || m < 0 || m > 59) { toast("Valores de SLA inválidos", "error"); return; }
+  s.slaH = h; s.slaM = m;
+  renderTree();
+  renderNodes();
+  renderDetailPanel();
+  saveStore();
+  const slaStr = formatSLA(h, m);
+  toast(slaStr ? `SLA configurado: ${slaStr}` : "SLA eliminado");
+}
+
+function addFromPanel() {
+  const sel = document.getElementById("new-target");
+  if (!sel || !sel.value) return;
+  addTransition(selectedNode, sel.value);
+  syncDrawer();
+}
+
+// ════════════════════════════════════════════════════════════
+//  TRANSITIONS CRUD
+// ════════════════════════════════════════════════════════════
+function addTransition(from, to) {
+  if (isUnderFin(from)) { toast("No se permiten transiciones desde estados de Fin", "error"); return; }
+  if (store.transitions.find(t => t.from === from && t.to === to)) { toast("Transición ya existe", "error"); return; }
+  // Check cycle — but allow with confirm (common in ticket workflows)
+  if (hasCycle(store.transitions, from, to)) {
+    const fromS = stateById(from), toS = stateById(to);
+    if (!confirm(`Esta transición crea un ciclo (${fromS?.label} → ${toS?.label}).\n¿Permitir? Los ciclos son válidos en workflows de tickets.`)) return;
+  }
+  store.transitions.push({ from, to });
+  renderEdges(); refreshHighlights(); renderDetailPanel(); saveStore();
+  toast(`Transición → ${stateById(to)?.label || to} agregada`);
+}
+
+function removeTransition(from, to) {
+  store.transitions = store.transitions.filter(t => !(t.from === from && t.to === to));
+  renderEdges(); refreshHighlights(); renderDetailPanel(); saveStore();
+  toast("Transición eliminada");
+}
+
+// ════════════════════════════════════════════════════════════
+//  STATE CRUD
+// ════════════════════════════════════════════════════════════
+function openModal() {
+  const sel = document.getElementById("modal-group");
+  sel.innerHTML = Object.entries(GROUPS)
+    .map(([id]) => `<option value="${id}">${id.charAt(0).toUpperCase() + id.slice(1)}</option>`).join("");
+  document.getElementById("modal-name").value = "";
+  document.getElementById("modal-overlay").classList.add("open");
+  setTimeout(() => document.getElementById("modal-name").focus(), 60);
+}
+function closeModal() { document.getElementById("modal-overlay").classList.remove("open"); }
+function handleModalOverlayClick(e) { if (e.target.id === "modal-overlay") closeModal(); }
+
+function confirmAddState() {
+  const label = document.getElementById("modal-name").value.trim();
+  const group = document.getElementById("modal-group").value;
+  if (!label) { document.getElementById("modal-name").focus(); toast("Ingresa un nombre", "error"); return; }
+  const baseId = label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
+  let id = baseId, c = 2;
+  while (store.states.find(s => s.id === id)) id = baseId + "_" + c++;
+
+  const siblings = store.states.filter(s => s.parent === group);
+  let x = 200, y = 200;
+  if (siblings.length) {
+    const lp = store.positions[siblings[siblings.length-1].id] || { x: 200, y: 200 };
+    x = lp.x; y = lp.y + NODE_H + 24;
+  } else {
+    const rp = store.positions[group]; if (rp) { x = rp.x; y = rp.y + NODE_H + 24; }
+  }
+
+  store.states.push({ id, label, parent: group, slaH: 0, slaM: 0 });
+  store.positions[id] = { x, y };
+  renderTree(); renderNodes(); repositionEdges(); saveStore();
+  closeModal(); selectNode(id);
+  toast(`Estado "${label}" creado`);
+}
+
+function deleteState(id) {
+  const s = stateById(id);
+  if (!s) return;
+  if (!confirm(`¿Eliminar "${s.label}"?\nTambién se eliminarán sus transiciones.`)) return;
+  store.transitions = store.transitions.filter(t => t.from !== id && t.to !== id);
+  store.states = store.states.filter(st => st.id !== id);
+  delete store.positions[id];
+  selectedNode = null;
+  renderTree(); renderGraph(); renderDetailPanel(); saveStore();
+  toast(`"${s.label}" eliminado`);
+}
+
+// ════════════════════════════════════════════════════════════
+//  SIMULATION
+// ════════════════════════════════════════════════════════════
+let simMode = false, simCurrent = null, simHistory = [];
+
+function toggleSim() {
+  simMode = !simMode;
+  const btn = document.getElementById("btn-sim");
+  const bar = document.getElementById("sim-bar");
+  const btnText = btn.querySelector(".btn-text");
+  if (simMode) {
+    btn.classList.add("active");
+    if (btnText) btnText.textContent = "Detener";
+    else btn.textContent = "⏹";
+    const start = store.states.find(s => s.parent === "inicio");
+    simCurrent = start ? start.id : null;
+    simHistory = simCurrent ? [simCurrent] : [];
+    bar.classList.remove("hidden");
+    updateSimBar(); selectNode(simCurrent);
+  } else {
+    btn.classList.remove("active");
+    if (btnText) btnText.textContent = "Simular flujo";
+    else btn.textContent = "▶";
+    bar.classList.add("hidden");
+    simCurrent = null; selectedNode = null;
+    renderTree(); renderEdges(); refreshHighlights(); renderDetailPanel();
+  }
+}
+function simStep() {
+  if (!simCurrent) return;
+  const out = getOutgoing(simCurrent);
+  if (!out.length) { toast("Estado terminal — sin transiciones salientes"); return; }
+  // In simulation, show a picker if multiple transitions
+  if (out.length === 1) {
+    simCurrent = out[0].to;
+  } else {
+    const opts = out.map((t, i) => `${i+1}. ${stateById(t.to)?.label || t.to}`).join("\n");
+    const choice = prompt(`Elegir siguiente estado:\n${opts}\n\nIngresa número:`);
+    const idx = parseInt(choice) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= out.length) return;
+    simCurrent = out[idx].to;
+  }
+  simHistory.push(simCurrent);
+  updateSimBar(); selectNode(simCurrent);
+}
+function simBack() {
+  if (simHistory.length <= 1) return;
+  simHistory.pop();
+  simCurrent = simHistory[simHistory.length-1];
+  updateSimBar(); selectNode(simCurrent);
+}
+function updateSimBar() {
+  const s = stateById(simCurrent);
+  document.getElementById("sim-state-label").textContent = s ? s.label : "—";
+  document.getElementById("sim-step-num").textContent = `Paso ${simHistory.length}`;
+  const sla = s && s.parent ? formatSLA(s.slaH, s.slaM) : null;
+  document.getElementById("sim-sla").textContent = sla ? `⏱ ${sla}` : "";
+}
+
+// ════════════════════════════════════════════════════════════
+//  TOOLBAR
+// ════════════════════════════════════════════════════════════
+function fitView() {
+  const positions = Object.values(store.positions);
+  if (!positions.length) return;
+  const xs = positions.map(p => p.x), ys = positions.map(p => p.y);
+  const minX = Math.min(...xs)-40, minY = Math.min(...ys)-40;
+  const maxX = Math.max(...xs)+NODE_W+40, maxY = Math.max(...ys)+NODE_H+40;
+  const wrap = document.getElementById("canvas-wrap");
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  scale = Math.min(W/(maxX-minX), H/(maxY-minY), 1.5);
+  pan.x = -minX*scale + (W-(maxX-minX)*scale)/2;
+  pan.y = -minY*scale + (H-(maxY-minY)*scale)/2;
+  applyTransform();
+}
+
+function resetToDefault() {
+  localStorage.removeItem(STORE_KEY);
+  store = {
+    states: JSON.parse(JSON.stringify(INITIAL_DATA.states)),
+    transitions: JSON.parse(JSON.stringify(INITIAL_DATA.transitions)),
+    positions: JSON.parse(JSON.stringify(DEFAULT_POSITIONS))
+  };
+  selectedNode = null;
+  renderTree(); renderGraph(); renderDetailPanel();
+  setTimeout(fitView, 50);
+}
+
+// ════════════════════════════════════════════════════════════
+//  MOBILE DRAWER
+// ════════════════════════════════════════════════════════════
+let drawerOpen = false, activeDrawerTab = "tree";
+
+function toggleDrawer() {
+  drawerOpen = !drawerOpen;
+  document.getElementById("mobile-drawer").classList.toggle("open", drawerOpen);
+  syncDrawer();
+}
+function closeDrawer() {
+  drawerOpen = false;
+  document.getElementById("mobile-drawer").classList.remove("open");
+}
+function switchDrawerTab(tab) {
+  activeDrawerTab = tab;
+  ["tree","detail"].forEach(t => {
+    document.getElementById(`dtab-${t}`).classList.toggle("active", t===tab);
+    document.getElementById(`dcontent-${t}`).classList.toggle("active", t===tab);
+  });
+  syncDrawer();
+}
+function syncDrawer() {
+  if (!drawerOpen) return;
+  if (activeDrawerTab === "tree") {
+    const dst = document.getElementById("dcontent-tree");
+    dst.innerHTML = document.getElementById("tree-body").innerHTML;
+    dst.querySelectorAll(".tree-node").forEach(row => {
+      const nid = row.dataset.id;
+      if (nid) row.addEventListener("click", () => { selectNode(nid); closeDrawer(); });
+    });
+    dst.querySelectorAll(".btn-add-state").forEach(btn => btn.addEventListener("click", () => { closeDrawer(); openModal(); }));
+  } else {
+    document.getElementById("dcontent-detail").innerHTML = document.getElementById("detail-body").innerHTML;
+  }
+}
+
+// ── Keyboard shortcuts ──
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    if (document.getElementById("modal-overlay").classList.contains("open")) closeModal();
+    else if (drawerOpen) closeDrawer();
+  }
+  if (e.key === "Enter" && document.getElementById("modal-overlay").classList.contains("open")) confirmAddState();
+});
+
+// ════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════
+function init() {
+  initCanvas();
+  renderTree();
+  renderGraph();
+
+  // Sim bar
+  const bar = document.createElement("div");
+  bar.id = "sim-bar"; bar.className = "hidden";
+  bar.innerHTML = `
+    <button class="sim-btn" onclick="simBack()" title="Atrás">◀</button>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+      <span id="sim-state-label">—</span>
+      <span id="sim-sla" style="font-size:10px;color:var(--amber)"></span>
+    </div>
+    <button class="sim-btn" onclick="simStep()" title="Siguiente">▶</button>
+    <span style="color:var(--text3);font-size:11px" id="sim-step-num">Paso 0</span>
+    <button class="sim-btn" onclick="toggleSim()" style="font-size:11px" title="Salir">✕</button>`;
+  document.getElementById("canvas-wrap").appendChild(bar);
+
+  document.getElementById("btn-fit").addEventListener("click", fitView);
+  document.getElementById("btn-reset").addEventListener("click", resetToDefault);
+  document.getElementById("btn-sim").addEventListener("click", toggleSim);
+
+  document.getElementById("canvas").addEventListener("click", e => {
+    if (e.target.id === "canvas" || e.target === rootG) {
+      selectedNode = null; renderTree(); refreshHighlights(); renderDetailPanel();
+    }
+  });
+
+  fitView();
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

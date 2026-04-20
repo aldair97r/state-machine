@@ -1,0 +1,168 @@
+{
+  "workflow": {
+    "id": "wf_ticket_lifecycle_v1",
+    "name": "Ciclo de vida de Ticket",
+    "version": "1.0.0",
+    "created_at": "2026-04-16T00:00:00Z",
+    "updated_at": "2026-04-16T00:00:00Z",
+    "active": true
+  },
+  "groups": [
+    {
+      "id": "inicio",
+      "label": "Inicio",
+      "color": "#6366f1",
+      "order": 1
+    },
+    {
+      "id": "proceso",
+      "label": "Proceso",
+      "color": "#14b8a6",
+      "order": 2
+    },
+    {
+      "id": "fin",
+      "label": "Fin",
+      "color": "#f59e0b",
+      "order": 3
+    }
+  ],
+  "states": [
+    {
+      "id": "nuevo_ticket",
+      "label": "Nuevo Ticket",
+      "group_id": "inicio",
+      "is_initial": true,
+      "is_terminal": false,
+      "sla": {
+        "hours": 1,
+        "minutes": 0,
+        "total_minutes": 60
+      },
+      "order": 1,
+      "canvas_position": { "x": 60, "y": 230 }
+    },
+    {
+      "id": "en_revision",
+      "label": "En Revisión",
+      "group_id": "proceso",
+      "is_initial": false,
+      "is_terminal": false,
+      "sla": {
+        "hours": 8,
+        "minutes": 0,
+        "total_minutes": 480
+      },
+      "order": 2,
+      "canvas_position": { "x": 260, "y": 180 }
+    },
+    {
+      "id": "incompleto",
+      "label": "Incompleto",
+      "group_id": "proceso",
+      "is_initial": false,
+      "is_terminal": false,
+      "sla": {
+        "hours": 24,
+        "minutes": 0,
+        "total_minutes": 1440
+      },
+      "order": 3,
+      "canvas_position": { "x": 260, "y": 300 }
+    },
+    {
+      "id": "en_espera",
+      "label": "En Espera",
+      "group_id": "proceso",
+      "is_initial": false,
+      "is_terminal": false,
+      "sla": {
+        "hours": 48,
+        "minutes": 0,
+        "total_minutes": 2880
+      },
+      "order": 4,
+      "canvas_position": { "x": 260, "y": 420 }
+    },
+    {
+      "id": "resuelto",
+      "label": "Resuelto",
+      "group_id": "fin",
+      "is_initial": false,
+      "is_terminal": true,
+      "sla": {
+        "hours": 0,
+        "minutes": 0,
+        "total_minutes": 0
+      },
+      "order": 5,
+      "canvas_position": { "x": 510, "y": 180 }
+    },
+    {
+      "id": "cerrado",
+      "label": "Cerrado",
+      "group_id": "fin",
+      "is_initial": false,
+      "is_terminal": true,
+      "sla": {
+        "hours": 0,
+        "minutes": 0,
+        "total_minutes": 0
+      },
+      "order": 6,
+      "canvas_position": { "x": 510, "y": 300 }
+    }
+  ],
+  "transitions": [
+    {
+      "id": "tr_001",
+      "from_state_id": "nuevo_ticket",
+      "to_state_id": "en_revision",
+      "label": null,
+      "order": 1
+    },
+    {
+      "id": "tr_002",
+      "from_state_id": "en_revision",
+      "to_state_id": "incompleto",
+      "label": null,
+      "order": 2
+    },
+    {
+      "id": "tr_003",
+      "from_state_id": "en_revision",
+      "to_state_id": "en_espera",
+      "label": null,
+      "order": 3
+    },
+    {
+      "id": "tr_004",
+      "from_state_id": "en_revision",
+      "to_state_id": "resuelto",
+      "label": null,
+      "order": 4
+    },
+    {
+      "id": "tr_005",
+      "from_state_id": "incompleto",
+      "to_state_id": "en_revision",
+      "label": null,
+      "order": 5,
+      "note": "Ciclo intencional — ticket devuelto a revisión tras corrección"
+    },
+    {
+      "id": "tr_006",
+      "from_state_id": "en_espera",
+      "to_state_id": "en_revision",
+      "label": null,
+      "order": 6
+    },
+    {
+      "id": "tr_007",
+      "from_state_id": "en_espera",
+      "to_state_id": "cerrado",
+      "label": null,
+      "order": 7
+    }
+  ]
+}
